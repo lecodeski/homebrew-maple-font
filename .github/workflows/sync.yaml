@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: '0 16 * * *'
 
+env:
+  UPSTREAM: subframe7536/maple-font
+  GH_TOKEN: ${{ github.token }}
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -14,19 +18,22 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.PAT_TOKEN }}
 
-      - uses: lecodeski/merge-upstream-defaults@main
-        with:
-          upstream: subframe7536/maple-font
-
-      - name: Re-create the most recent tag from upstream on origin for a new release
+      - name: Re-create the 'v-latest' tag when upstream has new tags
         run: |
-          LATEST=$(git ls-remote --tags upstream | grep -v '{}' | awk '{print $2}' | sed 's|refs/tags/||' | sort -V | tail -1)
+          FETCH_OUTPUT=$(git remote add --fetch --tags upstream "https://github.com/${{ env.UPSTREAM }}.git" 2>&1 | tail -1)
+          if [[ $FETCH_OUTPUT == ' * [new tag] '* ]]; then
+            git merge upstream/$(gh repo view "${{ env.UPSTREAM }}" --json defaultBranchRef --jq '.defaultBranchRef.name')
 
-          if ! git ls-remote --tags origin | grep -q "refs/tags/${LATEST}$"; then
-            echo "Tag $LATEST doesn't exist on origin, creating it on HEAD"
-            git tag -f "${LATEST}"  # -f to overwrite local tag from upstream
-            git push origin "${LATEST}"
-            echo "Created and pushed tag: $LATEST"
-          else
-            echo "Tag $LATEST already exists on origin"
+            VERSION=${FETCH_OUTPUT#* -> v}
+            sed -i "s/version \"\d+\.\d+\"/version \"${VERSION}\"/" Casks/font-maple-mono.rb
+
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+            git add Casks/font-maple-mono.rb
+            git commit --amend --no-edit
+            git tag --force v-latest
+            git push --force --tags origin main
+
+            gh release delete v-latest --repo ${{ github.repository }} --yes
           fi
