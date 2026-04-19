@@ -38,9 +38,10 @@ jobs:
           git merge upstream/$(gh repo view "${{ env.UPSTREAM }}" --json defaultBranchRef --jq '.defaultBranchRef.name')
 
           sed -i "s/version \".*\"/version \"$LATEST_VERSION\"/" Casks/font-maple-mono.rb
-
           git commit --all --m "[sync-fork]: bump Cask version to recent release $LATEST_VERSION" -m "based on commit $UPSTREAM_SHA"
           git tag --force v-latest
-          git push --force origin main v-latest
+          
+          git push origin main
+          git push --force origin v-latest
 
           gh release delete v-latest --repo ${{ github.repository }} --yes 2>/dev/null || true
