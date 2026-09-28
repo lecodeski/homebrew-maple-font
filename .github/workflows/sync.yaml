@@ -18,19 +18,22 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.PAT_TOKEN }}
 
-      - name: Re-create the 'v-latest' tag when upstream has new tags
+      - name: Re-create the 'v-latest' tag when upstream has a new stable release
         run: |
           git remote add --fetch --tags upstream "https://github.com/${{ env.UPSTREAM }}.git"
 
-          LATEST_TAG=$(git ls-remote --sort=committerdate upstream 'refs/tags/v*' | tail -1)
+          LATEST_TAG=$(git ls-remote --sort=version:refname upstream 'refs/tags/v*' |
+            grep -P 'refs/tags/v\d+(\.\d+)*$' | tail -1)
+          [[ -n $LATEST_TAG ]] || { echo "No stable upstream tag found"; exit 1; }
+
           UPSTREAM_SHA=${LATEST_TAG%$'\t'*}
           LATEST_VERSION=${LATEST_TAG#*v}
 
           if git merge-base --is-ancestor "$UPSTREAM_SHA" HEAD; then
-            echo "Already up to date with $LATEST_TAG"
+            echo "Already up to date with v$LATEST_VERSION"
             exit 0
           fi
-          echo "New upstream release: $LATEST_TAG"
+          echo "New upstream release: v$LATEST_VERSION"
           
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
